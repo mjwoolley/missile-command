@@ -16,29 +16,42 @@ let gameState = {
 
 // Initialize game
 function initGame() {
-    // Initialize bases (3 bases at the bottom)
-    const baseSpacing = canvas.width / 4;
-    for (let i = 1; i <= 3; i++) {
-        gameState.bases.push({
-            x: baseSpacing * i,
-            y: canvas.height - 20,
-            width: 40,
-            height: 20,
-            isDestroyed: false
-        });
-    }
+    // Initialize bases (3 bases at the bottom: left, center, right)
+    const basePositions = [
+        { x: 80, y: canvas.height - 15 },  // Left base
+        { x: canvas.width / 2, y: canvas.height - 15 },  // Center base
+        { x: canvas.width - 80, y: canvas.height - 15 }  // Right base
+    ];
 
-    // Initialize cities (6 cities at the bottom)
-    const citySpacing = canvas.width / 7;
-    for (let i = 1; i <= 6; i++) {
-        gameState.cities.push({
-            x: citySpacing * i,
-            y: canvas.height - 40,
+    basePositions.forEach(pos => {
+        gameState.bases.push({
+            x: pos.x,
+            y: pos.y,
             width: 30,
-            height: 20,
+            height: 25,
             isDestroyed: false
         });
-    }
+    });
+
+    // Initialize cities (6 cities between the bases)
+    const cityPositions = [
+        canvas.width * 0.2,
+        canvas.width * 0.3,
+        canvas.width * 0.4,
+        canvas.width * 0.6,
+        canvas.width * 0.7,
+        canvas.width * 0.8
+    ];
+
+    cityPositions.forEach(x => {
+        gameState.cities.push({
+            x: x,
+            y: canvas.height - 20,
+            width: 20,
+            height: 25,
+            isDestroyed: false
+        });
+    });
 }
 
 // Game loop
@@ -114,19 +127,90 @@ function handleClick(event) {
 
 // Drawing functions
 function drawBases() {
-    ctx.fillStyle = '#00ff00';
+    // Draw ground line first
+    ctx.strokeStyle = '#0066FF';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height - 10);
+    ctx.lineTo(canvas.width, canvas.height - 10);
+    ctx.stroke();
+
     gameState.bases.forEach(base => {
         if (!base.isDestroyed) {
-            ctx.fillRect(base.x - base.width/2, base.y - base.height/2, base.width, base.height);
+            // Draw base (triangular structure)
+            ctx.fillStyle = '#0066FF';
+            ctx.beginPath();
+            ctx.moveTo(base.x, base.y - base.height);  // Top point
+            ctx.lineTo(base.x - base.width/2, base.y);  // Bottom left
+            ctx.lineTo(base.x + base.width/2, base.y);  // Bottom right
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw base platform
+            ctx.fillRect(
+                base.x - base.width/1.5, 
+                base.y, 
+                base.width * 1.3, 
+                base.height/3
+            );
         }
     });
 }
 
 function drawCities() {
-    ctx.fillStyle = '#ffffff';
     gameState.cities.forEach(city => {
         if (!city.isDestroyed) {
-            ctx.fillRect(city.x - city.width/2, city.y - city.height/2, city.width, city.height);
+            ctx.fillStyle = '#ffffff';
+            const x = city.x;
+            const y = city.y;
+            const baseWidth = city.width * 2;  // Make the city wider
+            
+            // Draw multiple buildings for each city
+            // Tall center building (like Empire State)
+            ctx.fillRect(x - 4, y - 35, 8, 35);  // Main body
+            ctx.beginPath();  // Spire
+            ctx.moveTo(x - 2, y - 35);
+            ctx.lineTo(x, y - 45);
+            ctx.lineTo(x + 2, y - 35);
+            ctx.fill();
+            
+            // Windows for center building
+            ctx.fillStyle = '#000000';
+            for(let i = 0; i < 5; i++) {
+                ctx.fillRect(x - 3, y - 32 + (i * 7), 2, 2);
+                ctx.fillRect(x + 1, y - 32 + (i * 7), 2, 2);
+            }
+            ctx.fillStyle = '#ffffff';
+
+            // Left buildings
+            ctx.fillRect(x - baseWidth/2, y - 15, 10, 15);  // Small building
+            ctx.fillRect(x - baseWidth/2 + 12, y - 25, 10, 25);  // Medium building
+            
+            // Right buildings
+            ctx.fillRect(x + baseWidth/2 - 10, y - 20, 10, 20);  // Medium building
+            ctx.fillRect(x + baseWidth/2 - 22, y - 30, 10, 30);  // Tall building
+
+            // Windows for side buildings
+            ctx.fillStyle = '#000000';
+            // Left buildings windows
+            for(let i = 0; i < 2; i++) {
+                ctx.fillRect(x - baseWidth/2 + 2, y - 12 + (i * 5), 2, 2);
+                ctx.fillRect(x - baseWidth/2 + 6, y - 12 + (i * 5), 2, 2);
+            }
+            for(let i = 0; i < 3; i++) {
+                ctx.fillRect(x - baseWidth/2 + 14, y - 22 + (i * 7), 2, 2);
+                ctx.fillRect(x - baseWidth/2 + 18, y - 22 + (i * 7), 2, 2);
+            }
+            
+            // Right buildings windows
+            for(let i = 0; i < 3; i++) {
+                ctx.fillRect(x + baseWidth/2 - 8, y - 17 + (i * 5), 2, 2);
+                ctx.fillRect(x + baseWidth/2 - 4, y - 17 + (i * 5), 2, 2);
+            }
+            for(let i = 0; i < 4; i++) {
+                ctx.fillRect(x + baseWidth/2 - 20, y - 27 + (i * 7), 2, 2);
+                ctx.fillRect(x + baseWidth/2 - 16, y - 27 + (i * 7), 2, 2);
+            }
         }
     });
 }
