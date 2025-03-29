@@ -132,13 +132,27 @@ function drawCities() {
 }
 
 function drawEnemyMissiles() {
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 2;
     gameState.enemyMissiles.forEach(missile => {
+        // Draw the trail (behind the missile)
+        const gradient = ctx.createLinearGradient(missile.x, missile.y - 160, missile.x, missile.y);
+        gradient.addColorStop(0, 'rgba(255, 0, 0, 0)');
+        gradient.addColorStop(1, 'rgba(255, 0, 0, 0.8)');
+        
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(missile.x, missile.y);
-        ctx.lineTo(missile.x, missile.y + 10);
+        ctx.moveTo(missile.x, missile.y - 160);
+        ctx.lineTo(missile.x, missile.y);
         ctx.stroke();
+
+        // Draw the missile shape (pointing downward)
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(missile.x, missile.y + 8);
+        ctx.lineTo(missile.x - 3, missile.y);
+        ctx.lineTo(missile.x + 3, missile.y);
+        ctx.closePath();
+        ctx.fill();
     });
 }
 
@@ -194,7 +208,7 @@ function spawnEnemyMissile() {
         gameState.enemyMissiles.push({
             x: Math.random() * canvas.width,
             y: 0,
-            speed: 2 + gameState.level * 0.5,
+            speed: 0.5 + gameState.level * 0.125,
             target: target
         });
     }
@@ -224,6 +238,30 @@ function updateExplosions() {
 }
 
 function checkCollisions() {
+    // Check player missiles against enemy missiles
+    gameState.playerMissiles.forEach((playerMissile, playerIndex) => {
+        gameState.enemyMissiles.forEach((enemyMissile, enemyIndex) => {
+            const dx = playerMissile.x - enemyMissile.x;
+            const dy = playerMissile.y - enemyMissile.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < 10) { // Collision threshold
+                // Create explosion at collision point
+                gameState.explosions.push({
+                    x: playerMissile.x,
+                    y: playerMissile.y,
+                    radius: 5,
+                    life: 20
+                });
+                
+                // Remove both missiles
+                gameState.playerMissiles.splice(playerIndex, 1);
+                gameState.enemyMissiles.splice(enemyIndex, 1);
+                gameState.score += 100;
+            }
+        });
+    });
+
     // Check enemy missiles against explosions
     gameState.enemyMissiles.forEach((missile, missileIndex) => {
         gameState.explosions.forEach(explosion => {
