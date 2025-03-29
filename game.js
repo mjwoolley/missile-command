@@ -14,6 +14,37 @@ let gameState = {
     explosions: []
 };
 
+// Add sound element reference at the top with other constants
+const explosionSound = document.getElementById('explosionSound');
+
+// Add sound loading verification
+explosionSound.addEventListener('error', (e) => {
+    console.error('Error loading explosion sound:', e);
+});
+
+// Ensure audio can play
+function playExplosionSound() {
+    try {
+        // Create and play a new audio instance each time
+        const soundClone = explosionSound.cloneNode();
+        soundClone.volume = 0.3;  // Reduced volume to 30%
+        
+        // Reset the sound to the beginning
+        soundClone.currentTime = 0;
+        
+        // Play the sound with a promise to handle autoplay restrictions
+        const playPromise = soundClone.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.error('Error playing explosion sound:', error);
+            });
+        }
+    } catch (e) {
+        console.error('Error with explosion sound:', e);
+    }
+}
+
 // Initialize game
 function initGame() {
     // Initialize bases (3 bases at the bottom: left, center, right)
@@ -241,13 +272,62 @@ function drawEnemyMissiles() {
 }
 
 function drawPlayerMissiles() {
-    ctx.strokeStyle = '#00ff00';
-    ctx.lineWidth = 2;
     gameState.playerMissiles.forEach(missile => {
+        // Calculate missile angle based on velocity
+        const angle = Math.atan2(missile.dy, missile.dx);
+        
+        // Draw the trail
+        const trailLength = 160;
+        const gradient = ctx.createLinearGradient(
+            missile.x - Math.cos(angle) * trailLength,
+            missile.y - Math.sin(angle) * trailLength,
+            missile.x,
+            missile.y
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0.8)');
+        
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(missile.x, missile.y);
-        ctx.lineTo(missile.x + missile.dx * 5, missile.y + missile.dy * 5);
+        ctx.moveTo(
+            missile.x - Math.cos(angle) * trailLength,
+            missile.y - Math.sin(angle) * trailLength
+        );
+        ctx.lineTo(missile.x, missile.y);
         ctx.stroke();
+
+        // Save the current context state
+        ctx.save();
+        
+        // Move to missile position and rotate
+        ctx.translate(missile.x, missile.y);
+        ctx.rotate(angle);
+        
+        // Draw the missile body (white)
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        // Main body (pointed)
+        ctx.moveTo(8, 0);  // Nose
+        ctx.lineTo(-8, -4);  // Bottom left
+        ctx.lineTo(-8, 4);  // Bottom right
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw fins
+        ctx.beginPath();
+        // Left fin
+        ctx.moveTo(-8, -4);
+        ctx.lineTo(-12, -6);
+        ctx.lineTo(-8, -2);
+        // Right fin
+        ctx.moveTo(-8, 4);
+        ctx.lineTo(-12, 6);
+        ctx.lineTo(-8, 2);
+        ctx.fill();
+        
+        // Restore the context state
+        ctx.restore();
     });
 }
 
@@ -255,7 +335,13 @@ function drawExplosions() {
     gameState.explosions.forEach(explosion => {
         ctx.beginPath();
         ctx.arc(explosion.x, explosion.y, explosion.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 0, ${1 - explosion.life/100})`;
+        if (explosion.color === 'white') {
+            // White explosion with fade out
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * (explosion.life/50)})`;
+        } else {
+            // Regular yellow explosion
+            ctx.fillStyle = `rgba(255, 255, 0, ${1 - explosion.life/100})`;
+        }
         ctx.fill();
     });
 }
@@ -313,7 +399,13 @@ function updatePlayerMissiles() {
 
 function updateExplosions() {
     gameState.explosions.forEach(explosion => {
-        explosion.radius += 0.5;
+        if (explosion.maxRadius) {
+            // For player missile explosions
+            explosion.radius += (explosion.maxRadius - explosion.radius) * 0.1;
+        } else {
+            // For regular explosions
+            explosion.radius += 0.5;
+        }
         explosion.life--;
     });
 
@@ -322,6 +414,9 @@ function updateExplosions() {
 }
 
 function checkCollisions() {
+    const MISSILE_LENGTH = 20;  // Length of a missile for distance calculations
+    const EXPLOSION_SIZE = MISSILE_LENGTH * 5;  // Explosion size is 5x missile length
+
     // Check player missiles against enemy missiles
     gameState.playerMissiles.forEach((playerMissile, playerIndex) => {
         gameState.enemyMissiles.forEach((enemyMissile, enemyIndex) => {
@@ -329,19 +424,39 @@ function checkCollisions() {
             const dy = playerMissile.y - enemyMissile.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance < 10) { // Collision threshold
-                // Create explosion at collision point
+            if (distance < MISSILE_LENGTH * 2) { // Within 2 missile lengths
+                // Create large white explosion
                 gameState.explosions.push({
                     x: playerMissile.x,
                     y: playerMissile.y,
                     radius: 5,
-                    life: 20
+                    maxRadius: EXPLOSION_SIZE,
+                    life: 50,
+                    color: 'white'
                 });
                 
-                // Remove both missiles
+                // Play explosion sound with new function
+                playExplosionSound();
+                
+                // Remove the player missile
                 gameState.playerMissiles.splice(playerIndex, 1);
-                gameState.enemyMissiles.splice(enemyIndex, 1);
-                gameState.score += 100;
+
+                // Check if this explosion catches any other enemy missiles
+                const explosionX = playerMissile.x;
+                const explosionY = playerMissile.y;
+                
+                // Filter out enemy missiles caught in the explosion
+                gameState.enemyMissiles = gameState.enemyMissiles.filter((otherMissile, idx) => {
+                    const dxOther = otherMissile.x - explosionX;
+                    const dyOther = otherMissile.y - explosionY;
+                    const distanceOther = Math.sqrt(dxOther * dxOther + dyOther * dyOther);
+                    
+                    if (distanceOther <= EXPLOSION_SIZE) {
+                        gameState.score += 100;
+                        return false;  // Remove this missile
+                    }
+                    return true;  // Keep this missile
+                });
             }
         });
     });
@@ -414,8 +529,8 @@ function launchPlayerMissile(base, targetX, targetY) {
     gameState.playerMissiles.push({
         x: base.x,
         y: base.y,
-        dx: dx / length * 5,
-        dy: dy / length * 5
+        dx: (dx / length) * 3.5,  // Reduced speed by 50% (from 7 to 3.5)
+        dy: (dy / length) * 3.5
     });
 
     // Create explosion at launch point
